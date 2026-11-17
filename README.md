@@ -1,4 +1,4 @@
-# Bet Stop Blocklist — independent mirrored feed
+# Bet Stop Blocklist
 
 Your repository, not StevenBlack, is the URL the Bet Stop extension should fetch.
 
