@@ -1,0 +1,3 @@
+# Put your existing Bet Stop ~1,020 domains here, one per line.
+# OR import them with: node scripts/import-existing.mjs ../extension/blocked-domains.js
+# Entries here are merged with the public gambling-only upstream.

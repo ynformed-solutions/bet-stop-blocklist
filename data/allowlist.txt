@@ -1,0 +1,3 @@
+# Optional false-positive exceptions (exact domains only).
+# NOTE: domains from the extension's separately bundled BLOCKED_DOMAINS remain blocked.
+# A domain on this list is excluded from the public feed, not from Bet Stop's local list.
