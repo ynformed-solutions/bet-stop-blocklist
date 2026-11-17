@@ -80,20 +80,7 @@ export function buildHosts(upstreamText, localText, allowText, previousText = ''
   if (domains.size < MIN_DOMAINS || domains.size > MAX_DOMAINS) {
     throw new Error(`Unexpected published domain count: ${domains.size}`);
   }
-  const sorted = [...domains].sort();
-  return [
-    '# Title: Bet Stop owned gambling blocklist',
-    `# Source: ${UPSTREAM}`,
-    '# Past domains are preserved; use data/allowlist.txt to remove false positives.',
-    '# Local additions: data/local-domains.txt',
-    '# Attribution and licenses: see SOURCES.md',
-    '# The unified hosts file was not used while generating this file.',
-    '# Extensions used to generate this file: gambling',
-    `# Number of unique domains: ${sorted.length}`,
-    '#',
-    ...sorted.map(domain => `0.0.0.0 ${domain}`),
-    '',
-  ].join('\n');
+  return [...domains].sort().join('\n') + '\n';
 }
 
 async function readOptional(path) {
@@ -148,14 +135,28 @@ export async function updateBlocklist({root = ROOT, offline = false, upstreamTex
   // Offline manual mode allows local corrections even if upstream disappears.
   let fetched;
   if (offline) {
-    fetched = snapshot || previous;
-    if (!fetched) throw new Error('No owned snapshot exists. Run an online update once first.');
+    if (!snapshot && !previous) {
+      throw new Error('No owned snapshot or published list exists. Run an online update once first.');
+    }
+    fetched = snapshot || '';
   } else {
     fetched = upstreamText === undefined ? await fetchUpstream() : upstreamText;
   }
 
-  // All parsing and validation happens BEFORE any output files are touched.
-  const published = buildHosts(fetched, local, allow, previous, offline ? '' : snapshot);
+  // Validate before changing any published files. An offline rebuild without
+  // a snapshot can use the owned domain-only list instead of expecting hosts metadata.
+  let published;
+  if (offline && !snapshot) {
+    const domains = parseDomainLines(previous);
+    for (const domain of parseDomainLines(local)) domains.add(domain);
+    for (const domain of parseDomainLines(allow)) domains.delete(domain);
+    if (domains.size < MIN_DOMAINS || domains.size > MAX_DOMAINS) {
+      throw new Error(`Unexpected published domain count: ${domains.size}`);
+    }
+    published = [...domains].sort().join('\n') + '\n';
+  } else {
+    published = buildHosts(fetched, local, allow, previous, offline ? '' : snapshot);
+  }
   const count = parseDomainLines(published).size;
   const publishedChanged = await writeIfChanged(publishedPath, published);
   const snapshotChanged = !offline && await writeIfChanged(snapshotPath, fetched);

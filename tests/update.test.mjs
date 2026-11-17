@@ -34,15 +34,15 @@ test('only accepts verified gambling-only upstream', () => {
 
 test('merges your custom list and removes exact allowlisted domains', () => {
   const result = buildHosts(source(), 'superbet.ro', 'site1.example.org');
-  assert.match(result, /0\.0\.0\.0 superbet\.ro/);
-  assert.doesNotMatch(result, /0\.0\.0\.0 site1\.example\.org/);
+  assert.match(result, /(?:^|\n)superbet\.ro(?:\n|$)/);
+  assert.doesNotMatch(result, /(?:^|\n)site1\.example\.org(?:\n|$)/);
   assert.equal(parseDomainLines(result).size, 2100);
 });
 
 test('preserves previously published entries even if upstream drops them', () => {
   const previous = buildHosts(source(2300, '0.0.0.0 disappearedcasino.example'), '', '');
   const result = buildHosts(source(2100), '', '', previous);
-  assert.match(result, /0\.0\.0\.0 disappearedcasino\.example/);
+  assert.match(result, /(?:^|\n)disappearedcasino\.example(?:\n|$)/);
   assert.equal(parseDomainLines(result).size, 2301);
 });
 
@@ -64,7 +64,11 @@ test('successful update publishes both owned list and snapshot', async () => {
     await writeFile(resolve(root, 'data/local-domains.txt'), 'mycasino.ro\n');
     const result = await updateBlocklist({root, upstreamText: source()});
     assert.equal(result.count, 2101);
-    assert.match(await readFile(resolve(root, 'hosts'), 'utf8'), /mycasino\.ro/);
+    const published = await readFile(resolve(root, 'hosts'), 'utf8');
+    assert.match(published, /(?:^|\n)mycasino\.ro(?:\n|$)/);
+    assert.equal(published.trim().split('\n').length, 2101);
+    assert.ok(published.trim().split('\n').every(line => !line.includes(' ') && !line.startsWith('#')));
+    assert.equal(published, published.trim().split('\n').sort().join('\n') + '\n');
     assert.equal(await readFile(resolve(root, 'data/upstream-snapshot.hosts'), 'utf8'), source());
   });
 });
@@ -75,7 +79,7 @@ test('offline rebuild works from your own saved snapshot', async () => {
     await writeFile(resolve(root, 'data/local-domains.txt'), 'newcasino.ro\n');
     const result = await updateBlocklist({root, offline: true});
     assert.equal(result.offline, true);
-    assert.match(await readFile(resolve(root, 'hosts'), 'utf8'), /0\.0\.0\.0 newcasino\.ro/);
+    assert.match(await readFile(resolve(root, 'hosts'), 'utf8'), /(?:^|\n)newcasino\.ro(?:\n|$)/);
   });
 });
 
@@ -86,4 +90,22 @@ test('offline rebuild falls back to published hosts if snapshot is unavailable',
     const result = await updateBlocklist({root, offline: true});
     assert.equal(result.count, 2101);
   });
+});
+
+
+test('offline rebuild without snapshot uses domain-only published list', async () => {
+  await withRepo(async root => {
+    await writeFile(resolve(root, 'hosts'), buildHosts(source(), '', ''));
+    await writeFile(resolve(root, 'data/local-domains.txt'), 'anothercasino.ro\n');
+    const result = await updateBlocklist({root, offline: true});
+    assert.equal(result.count, 2101);
+    assert.match(await readFile(resolve(root, 'hosts'), 'utf8'), /(?:^|\n)anothercasino\.ro(?:\n|$)/);
+  });
+});
+
+test('migration preserves old IP-prefixed published domains', () => {
+  const old = '0.0.0.0 legacycasino.ro\n';
+  const published = buildHosts(source(), '', '', old);
+  assert.match(published, /(?:^|\n)legacycasino\.ro(?:\n|$)/);
+  assert.doesNotMatch(published, /0\.0\.0\.0 /);
 });
